@@ -1,0 +1,12 @@
+fastapi>=0.110
+uvicorn[standard]>=0.29
+python-binance>=1.0.19
+pandas>=2.0
+numpy>=1.26
+python-dotenv>=1.0
+itsdangerous>=2.1
+python-multipart>=0.0.9
+
+# testler için
+pytest>=8.0
+httpx>=0.27
