@@ -1,0 +1,272 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tradebot Panel</title>
+<style>
+  :root { --bg:#f5f6f8; --card:#fff; --text:#1d2330; --muted:#6b7280; --line:#e3e6eb;
+          --accent:#2563eb; --ok:#15803d; --bad:#b91c1c; --warn:#b45309; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#12151b; --card:#1b2029; --text:#e6e8ec; --muted:#9aa3b2; --line:#2c3340;
+            --accent:#60a5fa; --ok:#4ade80; --bad:#f87171; --warn:#fbbf24; }
+  }
+  * { box-sizing: border-box; }
+  body { margin:0; font:14px/1.45 system-ui, -apple-system, Segoe UI, Roboto, sans-serif; background:var(--bg); color:var(--text); }
+  header { display:flex; justify-content:space-between; align-items:center; padding:12px 16px; background:var(--card); border-bottom:1px solid var(--line); }
+  header h1 { font-size:16px; margin:0; }
+  main { max-width:1200px; margin:0 auto; padding:16px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:8px; padding:16px; margin-bottom:16px; }
+  .card h2 { font-size:15px; margin:0 0 12px; display:flex; justify-content:space-between; align-items:center; gap:8px; }
+  table { width:100%; border-collapse:collapse; }
+  th, td { text-align:left; padding:6px 8px; border-bottom:1px solid var(--line); vertical-align:top; }
+  th { color:var(--muted); font-weight:500; font-size:12px; }
+  .scroll { overflow-x:auto; }
+  button { font:inherit; padding:5px 10px; border-radius:6px; border:1px solid var(--line); background:var(--card); color:var(--text); cursor:pointer; }
+  button.primary { background:var(--accent); border-color:var(--accent); color:#fff; }
+  button.danger { color:var(--bad); }
+  button:disabled { opacity:.5; cursor:default; }
+  input, select { font:inherit; padding:6px 8px; border-radius:6px; border:1px solid var(--line); background:var(--bg); color:var(--text); width:100%; }
+  label { display:block; font-size:12px; color:var(--muted); margin-bottom:10px; }
+  label input, label select { margin-top:3px; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(180px, 1fr)); gap:0 12px; }
+  .badge { display:inline-block; padding:1px 7px; border-radius:10px; font-size:12px; border:1px solid currentColor; }
+  .running { color:var(--ok); } .stopped { color:var(--muted); } .err { color:var(--bad); }
+  .BUY { color:var(--ok); } .SELL { color:var(--bad); }
+  .ERROR { color:var(--bad); } .WARNING { color:var(--warn); } .DEBUG { color:var(--muted); }
+  .muted { color:var(--muted); font-size:12px; }
+  .actions { display:flex; gap:6px; flex-wrap:wrap; }
+  .hidden { display:none !important; }
+  #login { max-width:340px; margin:80px auto; }
+  #toast { position:fixed; bottom:16px; left:50%; transform:translateX(-50%); background:var(--text); color:var(--bg); padding:8px 14px; border-radius:6px; max-width:90vw; }
+  .tabs button.active { border-color:var(--accent); color:var(--accent); }
+  tr.selected td { background:color-mix(in srgb, var(--accent) 8%, transparent); }
+  .mono { font-family: ui-monospace, Menlo, Consolas, monospace; font-size:12px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Tradebot Panel</h1>
+  <div id="userbox" class="hidden"><span id="username" class="muted"></span> <button id="logout">Çıkış</button></div>
+</header>
+
+<div id="login" class="card hidden">
+  <h2>Giriş</h2>
+  <form id="loginForm">
+    <label>Kullanıcı adı<input name="username" autocomplete="username" required></label>
+    <label>Şifre<input name="password" type="password" autocomplete="current-password" required></label>
+    <button class="primary" type="submit">Giriş yap</button>
+  </form>
+</div>
+
+<main id="app" class="hidden">
+  <div class="card">
+    <h2>Botlar <button class="primary" id="newBot">+ Yeni bot</button></h2>
+    <div class="scroll"><table>
+      <thead><tr><th>Ad</th><th>Parite</th><th>Strateji</th><th>Mod</th><th>Durum</th><th>Pozisyon</th><th>Son çalışma</th><th></th></tr></thead>
+      <tbody id="bots"></tbody>
+    </table></div>
+    <p id="noBots" class="muted hidden">Henüz bot yok. "Yeni bot" ile ekleyin.</p>
+  </div>
+
+  <div class="card hidden" id="editor">
+    <h2 id="editorTitle">Bot</h2>
+    <form id="botForm">
+      <div class="grid">
+        <label>Ad<input name="name" required></label>
+        <label>Parite<input name="symbol" placeholder="BTCUSDT" required></label>
+        <label>Zaman dilimi<select name="interval"></select></label>
+        <label>Miktar (baz varlık)<input name="quantity" type="number" step="any" min="0" required></label>
+        <label>Mod<select name="mode"></select></label>
+        <label>Kontrol aralığı (sn)<input name="poll_seconds" type="number" min="10" max="3600" required></label>
+        <label>Strateji<select name="strategy"></select></label>
+      </div>
+      <p id="strategyDesc" class="muted"></p>
+      <div class="grid" id="paramFields"></div>
+      <p id="liveWarn" class="err hidden">Live mod gerçek parayla işlem yapar.</p>
+      <div class="actions">
+        <button class="primary" type="submit">Kaydet</button>
+        <button type="button" id="cancelEdit">Vazgeç</button>
+      </div>
+    </form>
+  </div>
+
+  <div class="card" id="detail">
+    <h2><span id="detailTitle">Tüm botlar</span>
+      <span class="tabs actions"><button data-tab="logs" class="active">Loglar</button><button data-tab="orders">Emirler</button></span>
+    </h2>
+    <div class="scroll" id="logsPane"><table>
+      <thead><tr><th>Zaman</th><th>Bot</th><th>Seviye</th><th>Mesaj</th></tr></thead><tbody id="logs"></tbody></table></div>
+    <div class="scroll hidden" id="ordersPane"><table>
+      <thead><tr><th>Zaman</th><th>Bot</th><th>Yön</th><th>Miktar</th><th>Fiyat</th><th>Mod</th><th>Sebep</th></tr></thead><tbody id="orders"></tbody></table></div>
+  </div>
+</main>
+<div id="toast" class="hidden"></div>
+
+<script>
+const $ = s => document.querySelector(s);
+const esc = v => String(v ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+let META = null, STRATS = [], BOTS = [], selected = null, editing = null, tab = "logs";
+
+async function api(path, opts = {}) {
+  const res = await fetch(path, { headers: {"Content-Type": "application/json"}, credentials: "same-origin", ...opts,
+    body: opts.body ? JSON.stringify(opts.body) : undefined });
+  if (res.status === 401 && path !== "/api/login") { showLogin(); throw new Error("Giriş gerekli"); }
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    let msg = data.detail;
+    if (Array.isArray(msg)) msg = msg.map(d => `${d.loc.slice(-1)[0]}: ${d.msg}`).join(", ");
+    throw new Error(msg || res.statusText);
+  }
+  return data;
+}
+function toast(msg) { const t = $("#toast"); t.textContent = msg; t.classList.remove("hidden"); clearTimeout(t._h); t._h = setTimeout(() => t.classList.add("hidden"), 4000); }
+function fmtTime(ts) { return ts ? new Date(ts).toLocaleString("tr-TR") : "—"; }
+function showLogin() { $("#app").classList.add("hidden"); $("#userbox").classList.add("hidden"); $("#login").classList.remove("hidden"); }
+
+async function boot() {
+  try { META = await api("/api/me"); } catch { return showLogin(); }
+  $("#login").classList.add("hidden"); $("#app").classList.remove("hidden"); $("#userbox").classList.remove("hidden");
+  $("#username").textContent = META.user;
+  STRATS = await api("/api/strategies");
+  $("[name=interval]").innerHTML = META.intervals.map(i => `<option>${i}</option>`).join("");
+  const modeLabel = {dry: "dry (simülasyon)", testnet: "testnet", live: "live (gerçek)"};
+  $("[name=mode]").innerHTML = META.modes.map(m => `<option value="${m}" ${m === "live" && !META.allow_live_trading ? "disabled" : ""}>${modeLabel[m]}${m === "live" && !META.allow_live_trading ? " — kapalı" : ""}</option>`).join("");
+  $("[name=strategy]").innerHTML = STRATS.map(s => `<option value="${s.key}">${esc(s.name)}</option>`).join("");
+  refresh();
+}
+
+async function refresh() {
+  try {
+    BOTS = await api("/api/bots");
+    renderBots();
+    await renderDetail();
+  } catch (e) { if (e.message !== "Giriş gerekli") console.error(e); }
+}
+
+function stratName(key) { return (STRATS.find(s => s.key === key) || {}).name || key; }
+function botName(id) { return (BOTS.find(b => b.id === id) || {}).name || `#${id}`; }
+
+function renderBots() {
+  $("#noBots").classList.toggle("hidden", BOTS.length > 0);
+  $("#bots").innerHTML = BOTS.map(b => `
+    <tr class="${selected === b.id ? "selected" : ""}">
+      <td><a href="#" data-act="select" data-id="${b.id}">${esc(b.name)}</a></td>
+      <td>${esc(b.symbol)} <span class="muted">${esc(b.interval)}</span></td>
+      <td>${esc(stratName(b.strategy))}</td>
+      <td>${esc(b.mode)}</td>
+      <td><span class="badge ${b.running ? "running" : "stopped"}">${b.running ? "çalışıyor" : "durdu"}</span>
+          ${b.last_error ? `<div class="err muted" title="${esc(b.last_error)}">hata: ${esc(b.last_error.slice(0, 60))}</div>` : ""}</td>
+      <td>${b.position_qty > 0 ? `${b.position_qty} @ ${Number(b.entry_price).toFixed(2)}` : "—"}</td>
+      <td class="muted">${fmtTime(b.last_run_at)}</td>
+      <td class="actions">
+        ${b.running ? `<button data-act="stop" data-id="${b.id}">Durdur</button>` : `<button class="primary" data-act="start" data-id="${b.id}">Başlat</button>`}
+        <button data-act="edit" data-id="${b.id}">Düzenle</button>
+        ${b.position_qty > 0 ? `<button data-act="reset" data-id="${b.id}" title="Emir göndermeden pozisyon kaydını sıfırla">Poz. sıfırla</button>` : ""}
+        <button class="danger" data-act="delete" data-id="${b.id}">Sil</button>
+      </td>
+    </tr>`).join("");
+}
+
+async function renderDetail() {
+  $("#detailTitle").textContent = selected ? `${botName(selected)} — ayrıntılar` : "Tüm botlar";
+  const base = selected ? `/api/bots/${selected}` : "/api";
+  if (tab === "logs") {
+    const logs = await api(`${base}/logs?limit=200`);
+    $("#logs").innerHTML = logs.map(l => `<tr><td class="muted">${fmtTime(l.ts)}</td><td>${esc(botName(l.bot_id))}</td>
+      <td class="${l.level}">${l.level}</td><td class="mono">${esc(l.message)}</td></tr>`).join("") || `<tr><td colspan="4" class="muted">Log yok</td></tr>`;
+  } else {
+    const orders = await api(`${base}/orders?limit=200`);
+    $("#orders").innerHTML = orders.map(o => `<tr><td class="muted">${fmtTime(o.ts)}</td><td>${esc(botName(o.bot_id))}</td>
+      <td class="${o.side}">${o.side}</td><td>${o.quantity}</td><td>${o.price != null ? Number(o.price).toFixed(2) : "—"}</td>
+      <td>${esc(o.mode)}</td><td class="muted">${esc(o.reason)}</td></tr>`).join("") || `<tr><td colspan="7" class="muted">Emir yok</td></tr>`;
+  }
+}
+
+function renderParams(strategyKey, values = {}) {
+  const s = STRATS.find(x => x.key === strategyKey);
+  $("#strategyDesc").textContent = s ? s.description : "";
+  $("#paramFields").innerHTML = (s ? s.params : []).map(p => `
+    <label>${esc(p.label)} <span class="muted">(${p.name})</span>
+      <input data-param="${p.name}" type="number" step="${p.type === "int" ? 1 : "any"}"
+        ${p.min != null ? `min="${p.min}"` : ""} ${p.max != null ? `max="${p.max}"` : ""}
+        value="${values[p.name] ?? p.default}" required></label>`).join("");
+}
+
+function openEditor(bot) {
+  editing = bot ? bot.id : null;
+  const f = $("#botForm");
+  const v = bot || {name: "", symbol: "BTCUSDT", interval: "1h", quantity: 0.001, mode: "dry", poll_seconds: 60, strategy: STRATS[0].key, params: {}};
+  for (const k of ["name", "symbol", "interval", "quantity", "mode", "poll_seconds", "strategy"]) f.elements[k].value = v[k];
+  const lock = bot && bot.running;
+  for (const k of ["symbol", "mode", "strategy"]) f.elements[k].disabled = !!lock;
+  $("#editorTitle").textContent = bot ? `Düzenle: ${bot.name}${lock ? " (çalışırken parametreler bir sonraki turda devreye girer)" : ""}` : "Yeni bot";
+  renderParams(v.strategy, v.params);
+  $("#liveWarn").classList.toggle("hidden", v.mode !== "live");
+  $("#editor").classList.remove("hidden");
+  $("#editor").scrollIntoView({behavior: "smooth"});
+}
+
+$("#botForm").addEventListener("submit", async e => {
+  e.preventDefault();
+  const f = e.target, body = {};
+  for (const k of ["name", "symbol", "interval", "mode", "strategy"]) if (!f.elements[k].disabled) body[k] = f.elements[k].value;
+  body.quantity = parseFloat(f.elements.quantity.value);
+  body.poll_seconds = parseInt(f.elements.poll_seconds.value, 10);
+  body.params = {};
+  f.querySelectorAll("[data-param]").forEach(i => body.params[i.dataset.param] = Number(i.value));
+  try {
+    await api(editing ? `/api/bots/${editing}` : "/api/bots", {method: editing ? "PATCH" : "POST", body});
+    $("#editor").classList.add("hidden");
+    toast("Kaydedildi");
+    refresh();
+  } catch (err) { toast(err.message); }
+});
+$("[name=strategy]").addEventListener("change", e => renderParams(e.target.value));
+$("[name=mode]").addEventListener("change", e => $("#liveWarn").classList.toggle("hidden", e.target.value !== "live"));
+$("#cancelEdit").addEventListener("click", () => $("#editor").classList.add("hidden"));
+$("#newBot").addEventListener("click", () => openEditor(null));
+
+$("#bots").addEventListener("click", async e => {
+  const el = e.target.closest("[data-act]"); if (!el) return;
+  e.preventDefault();
+  const id = Number(el.dataset.id), bot = BOTS.find(b => b.id === id);
+  try {
+    switch (el.dataset.act) {
+      case "select": selected = selected === id ? null : id; break;
+      case "start": await api(`/api/bots/${id}/start`, {method: "POST"}); toast("Başlatıldı"); break;
+      case "stop": await api(`/api/bots/${id}/stop`, {method: "POST"}); toast("Durduruldu"); break;
+      case "edit": openEditor(bot); return;
+      case "reset": if (!confirm("Pozisyon kaydı emir gönderilmeden sıfırlansın mı?")) return;
+        await api(`/api/bots/${id}/reset-position`, {method: "POST"}); break;
+      case "delete": if (!confirm(`"${bot.name}" silinsin mi? Log ve emir geçmişi de silinir.`)) return;
+        await api(`/api/bots/${id}`, {method: "DELETE"}); if (selected === id) selected = null; break;
+    }
+  } catch (err) { toast(err.message); }
+  refresh();
+});
+
+document.querySelectorAll(".tabs button").forEach(b => b.addEventListener("click", () => {
+  tab = b.dataset.tab;
+  document.querySelectorAll(".tabs button").forEach(x => x.classList.toggle("active", x === b));
+  $("#logsPane").classList.toggle("hidden", tab !== "logs");
+  $("#ordersPane").classList.toggle("hidden", tab !== "orders");
+  renderDetail();
+}));
+
+$("#loginForm").addEventListener("submit", async e => {
+  e.preventDefault();
+  const f = e.target;
+  try {
+    await api("/api/login", {method: "POST", body: {username: f.username.value, password: f.password.value}});
+    f.password.value = "";
+    boot();
+  } catch (err) { toast(err.message); }
+});
+$("#logout").addEventListener("click", async () => { await api("/api/logout", {method: "POST"}); showLogin(); });
+
+setInterval(() => { if (!$("#app").classList.contains("hidden")) refresh(); }, 5000);
+boot();
+</script>
+</body>
+</html>
